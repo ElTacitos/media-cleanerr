@@ -44,3 +44,53 @@ class RadarrClient:
         except Exception as e:
             logger.error(f"Error fetching history from Radarr: {e}")
             return []
+
+    def delete_movie(self, movie_id):
+        if not self.host or not self.api_key:
+            return False
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/movie/{movie_id}"
+            headers = {"X-Api-Key": self.api_key}
+            params = {"deleteFiles": "true"}
+
+            response = requests.delete(url, headers=headers, params=params)
+            response.raise_for_status()
+            logger.info(f"Deleted movie {movie_id} from Radarr.")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting movie {movie_id} from Radarr: {e}")
+            return False
+
+    def get_disk_space(self):
+        if not self.host or not self.api_key:
+            return []
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/diskspace"
+            headers = {"X-Api-Key": self.api_key}
+
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching disk space from Radarr: {e}")
+            return []
+
+    def get_root_folders(self):
+        if not self.host or not self.api_key:
+            return []
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/rootfolder"
+            headers = {"X-Api-Key": self.api_key}
+
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching root folders from Radarr: {e}")
+            return []

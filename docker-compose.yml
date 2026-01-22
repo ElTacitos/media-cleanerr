@@ -18,15 +18,15 @@ services:
 
       # Radarr Configuration
       - RADARR_HOST=http://192.168.1.64:7878
-      - RADARR_API_KEY=1088b91c087e4926a85e3bbe705e5cbf
+      - RADARR_API_KEY=XXX
 
       # Sonarr Configuration
       - SONARR_HOST=http://192.168.1.64:8989
-      - SONARR_API_KEY=1136a83b09bf4e9fb0ee368d263c34dd
+      - SONARR_API_KEY=XXX
 
       # Jellyfin Configuration
       - JELLYFIN_HOST=http://192.168.1.64:8096
-      - JELLYFIN_API_KEY=36b5d6b898cd488e8006c3cd1eca0b6f
+      - JELLYFIN_API_KEY=XXX
       # Optional: Jellyfin user ID if we want to scope to specific user,
       # but requirements say "at least one user", so we likely need to fetch all users.
 

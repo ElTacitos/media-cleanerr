@@ -66,6 +66,16 @@
         <h1>Media Cleanerr</h1>
         <p>Overview of media in your library, their torrent status, and if they have been watched.</p>
 
+        {% if disk_usage %}
+        <div style="margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px">
+            <h3 style="margin-top: 0">Disk Usage ({{ disk_usage.path }})</h3>
+            <div style="background-color: #fff; width: 100%; height: 20px; border-radius: 10px; border: 1px solid #ccc; overflow: hidden">
+                <div style="background-color: {% if disk_usage.percent > 90 %}#dc3545{% elif disk_usage.percent > 75 %}#ffc107{% else %}#28a745{% endif %}; width: {{ disk_usage.percent }}%; height: 100%;"></div>
+            </div>
+            <p style="margin-bottom: 0; margin-top: 5px">{{ disk_usage.percent }}% Used ({{ disk_usage.free }} free of {{ disk_usage.total }})</p>
+        </div>
+        {% endif %}
+
         <table>
             <thead>
                 <tr>
@@ -74,7 +84,10 @@
                     <th>Year</th>
                     <th>Media Status</th>
                     <th>Torrent Status</th>
+                    <th>Ratio</th>
+                    <th>Seed Time</th>
                     <th>Watched (Any User)</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -85,7 +98,17 @@
                     <td>{{ item.year }}</td>
                     <td class="{% if item.status == 'Downloaded' %}status-downloaded {% elif item.status == 'Missing' %}status-missing {% elif 'Partial' in item.status %}status-partial {% elif item.status == 'Unmonitored' %}status-unmonitored {% endif %}">{{ item.status }}</td>
                     <td>{{ item.torrent_state }}</td>
+                    <td>{{ item.ratio }}</td>
+                    <td>{{ item.seed_time }}</td>
                     <td class="{{ 'watched-yes' if item.watched else 'watched-no' }}">{{ 'Yes' if item.watched else 'No' }}</td>
+                    <td>
+                        <form action="/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ item.title }}? This will remove files and torrents.');">
+                            <input type="hidden" name="origin" value="{{ item.origin }}" />
+                            <input type="hidden" name="id" value="{{ item.id }}" />
+                            <input type="hidden" name="torrent_hashes" value="{{ item.torrent_hashes|join(',') }}" />
+                            <button type="submit" style="color: white; background-color: red; border: none; padding: 5px 10px; cursor: pointer">Delete</button>
+                        </form>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

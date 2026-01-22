@@ -16,6 +16,29 @@ class MatcherService:
         self.qbit = QBitClient()
         self.jellyfin = JellyfinClient()
 
+    def _format_bytes(self, size):
+        power = 1024
+        n = 0
+        power_labels = {0: "", 1: "K", 2: "M", 3: "G", 4: "T", 5: "P"}
+        while size > power:
+            size /= power
+            n += 1
+        return f"{size:.2f} {power_labels.get(n, '')}B"
+
+    def _format_seed_time(self, seconds):
+        if not seconds:
+            return "0s"
+        days = seconds // 86400
+        hours = (seconds % 86400) // 3600
+        if days > 0:
+            return f"{days}d {hours}h"
+        elif hours > 0:
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+        else:
+            minutes = (seconds % 3600) // 60
+            return f"{minutes}m"
+
     def get_aggregated_media(self):
         """
         Orchestrates fetching data and matching it.
@@ -79,6 +102,7 @@ class MatcherService:
                 lib_status = "Unmonitored"
 
             entry = {
+                "id": movie.get("id"),
                 "origin": "Radarr",
                 "title": movie.get("title"),
                 "year": movie.get("year"),
@@ -87,7 +111,9 @@ class MatcherService:
                 "status": lib_status,
                 "file_loaded": has_file,
                 "torrent_state": "N/A",
-                "torrent_hash": None,
+                "torrent_hashes": [],
+                "ratio": "N/A",
+                "seed_time": "N/A",
                 "watched": False,
             }
 
@@ -118,7 +144,11 @@ class MatcherService:
 
             if matched_torrent:
                 entry["torrent_state"] = matched_torrent.get("state")
-                entry["torrent_hash"] = matched_torrent.get("hash")
+                entry["torrent_hashes"] = [matched_torrent.get("hash")]
+                entry["ratio"] = f"{matched_torrent.get('ratio', 0):.2f}"
+                entry["seed_time"] = self._format_seed_time(
+                    matched_torrent.get("seeding_time", 0)
+                )
 
             # Match Jellyfin
             m_tmdb = str(movie.get("tmdbId", ""))
@@ -157,6 +187,7 @@ class MatcherService:
                 lib_status = f"Partial ({file_count}/{ep_count})"
 
             entry = {
+                "id": show.get("id"),
                 "origin": "Sonarr",
                 "title": show.get("title"),
                 "year": show.get("year"),
@@ -165,20 +196,29 @@ class MatcherService:
                 "status": lib_status,
                 "file_loaded": file_count > 0,
                 "torrent_state": "N/A",
-                "torrent_hash": None,
+                "torrent_hashes": [],
+                "ratio": "N/A",
+                "seed_time": "N/A",
                 "watched": False,
             }
 
             # Match Torrent
             matches = set()
+            found_hashes = set()
+            ratios = []
+            seed_times = []
 
             # 1. Try Hash Match via History
             s_id = show.get("id")
             if s_id in sonarr_hashes:
                 for h in sonarr_hashes[s_id]:
                     if h in torrents_by_hash:
-                        state = torrents_by_hash[h].get("state")
+                        t = torrents_by_hash[h]
+                        state = t.get("state")
                         matches.add(state)
+                        found_hashes.add(h)
+                        ratios.append(t.get("ratio", 0))
+                        seed_times.append(t.get("seeding_time", 0))
                         logger.info(
                             f"Matched series '{show.get('title')}' by hash {h} (state: {state})"
                         )
@@ -191,12 +231,24 @@ class MatcherService:
                         t_path = os.path.normpath(torrent["content_path"]).lower()
                         if show_path in t_path:
                             matches.add(torrent.get("state"))
+                            found_hashes.add(torrent.get("hash"))
+                            ratios.append(torrent.get("ratio", 0))
+                            seed_times.append(torrent.get("seeding_time", 0))
                             logger.info(
                                 f"Matched series '{show.get('title')}' by path: {t_path}"
                             )
 
             if matches:
                 entry["torrent_state"] = ", ".join(list(matches))
+                entry["torrent_hashes"] = list(found_hashes)
+
+                if ratios:
+                    avg_ratio = sum(ratios) / len(ratios)
+                    entry["ratio"] = f"Avg: {avg_ratio:.2f}"
+
+                if seed_times:
+                    max_time = max(seed_times)
+                    entry["seed_time"] = f"Max: {self._format_seed_time(max_time)}"
 
             # Match Jellyfin
             s_tvdb = str(show.get("tvdbId", ""))
@@ -219,3 +271,54 @@ class MatcherService:
 
         logger.info(f"Processed {len(combined_results)} media items.")
         return combined_results
+
+    def get_disk_usage(self):
+        disks = self.radarr.get_disk_space()
+        if not disks:
+            return None
+
+        target_disk = None
+
+        # 1. Try to match against Radarr Root Folder
+        root_folders = self.radarr.get_root_folders()
+        if root_folders:
+            rf_path = root_folders[0].get("path", "")
+
+            # Find the disk mount that contains this root folder
+            best_match = None
+            max_len = -1
+
+            for d in disks:
+                d_path = d.get("path", "")
+                if rf_path.startswith(d_path):
+                    if len(d_path) > max_len:
+                        max_len = len(d_path)
+                        best_match = d
+
+            if best_match:
+                target_disk = best_match
+
+        # 2. Fallback to hardcoded /media
+        if not target_disk:
+            for d in disks:
+                if d.get("path") == "/media":
+                    target_disk = d
+                    break
+
+        # 3. Fallback to first disk
+        if not target_disk and disks:
+            target_disk = disks[0]
+
+        if target_disk:
+            free = target_disk.get("freeSpace", 0)
+            total = target_disk.get("totalSpace", 0)
+            used = total - free
+            percent = (used / total * 100) if total > 0 else 0
+
+            return {
+                "path": target_disk.get("path"),
+                "free": self._format_bytes(free),
+                "total": self._format_bytes(total),
+                "percent": round(percent, 2),
+            }
+        return None

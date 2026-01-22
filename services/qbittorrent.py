@@ -67,3 +67,25 @@ class QBitClient:
         except Exception as e:
             logger.error(f"Error fetching torrents from qBittorrent: {e}")
             return []
+
+    def delete_torrent(self, torrent_hash):
+        if not self.host or not torrent_hash:
+            return False
+
+        if not self.authenticated:
+            if not self.login():
+                return False
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v2/torrents/delete"
+            # deleteFiles=true to remove content
+            data = {"hashes": torrent_hash, "deleteFiles": "true"}
+
+            response = self.session.post(url, data=data)
+            response.raise_for_status()
+            logger.info(f"Deleted torrent {torrent_hash} from qBittorrent.")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting torrent {torrent_hash}: {e}")
+            return False

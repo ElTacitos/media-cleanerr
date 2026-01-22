@@ -62,3 +62,21 @@ class SonarrClient:
         except Exception as e:
             logger.error(f"Error fetching history from Sonarr: {e}")
             return []
+
+    def delete_series(self, series_id):
+        if not self.host or not self.api_key:
+            return False
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/series/{series_id}"
+            headers = {"X-Api-Key": self.api_key}
+            params = {"deleteFiles": "true"}
+
+            response = requests.delete(url, headers=headers, params=params)
+            response.raise_for_status()
+            logger.info(f"Deleted series {series_id} from Sonarr.")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting series {series_id} from Sonarr: {e}")
+            return False
