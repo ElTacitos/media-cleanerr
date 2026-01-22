@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Media Cleanerr</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px;
+            }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-top: 20px;
+            }
+            th,
+            td {
+                border: 1px solid #ddd;
+                padding: 12px;
+                text-align: left;
+            }
+            th {
+                background-color: #f2f2f2;
+            }
+            tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            tr:hover {
+                background-color: #f1f1f1;
+            }
+            .watched-yes {
+                color: green;
+                font-weight: bold;
+            }
+            .watched-no {
+                color: #d9534f;
+            }
+            .origin-radarr {
+                color: #007bff;
+                font-weight: bold;
+            }
+            .origin-sonarr {
+                color: #17a2b8;
+                font-weight: bold;
+            }
+            .status-downloaded {
+                color: #28a745;
+                font-weight: bold;
+            }
+            .status-missing {
+                color: #dc3545;
+                font-weight: bold;
+            }
+            .status-partial {
+                color: #fd7e14;
+                font-weight: bold;
+            }
+            .status-unmonitored {
+                color: #6c757d;
+                font-style: italic;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Media Cleanerr</h1>
+        <p>Overview of media in your library, their torrent status, and if they have been watched.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Origin</th>
+                    <th>Year</th>
+                    <th>Media Status</th>
+                    <th>Torrent Status</th>
+                    <th>Watched (Any User)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in media_items %}
+                <tr>
+                    <td>{{ item.title }}</td>
+                    <td class="origin-{{ item.origin|lower }}">{{ item.origin }}</td>
+                    <td>{{ item.year }}</td>
+                    <td class="{% if item.status == 'Downloaded' %}status-downloaded {% elif item.status == 'Missing' %}status-missing {% elif 'Partial' in item.status %}status-partial {% elif item.status == 'Unmonitored' %}status-unmonitored {% endif %}">{{ item.status }}</td>
+                    <td>{{ item.torrent_state }}</td>
+                    <td class="{{ 'watched-yes' if item.watched else 'watched-no' }}">{{ 'Yes' if item.watched else 'No' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </body>
+</html>

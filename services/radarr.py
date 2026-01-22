@@ -1,0 +1,46 @@
+import logging
+
+import config
+import requests
+
+logger = logging.getLogger(__name__)
+
+
+class RadarrClient:
+    def __init__(self):
+        self.host = config.RADARR_HOST
+        self.api_key = config.RADARR_API_KEY
+
+    def get_movies(self):
+        if not self.host or not self.api_key:
+            logger.warning("Radarr credentials not configured")
+            return []
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/movie"
+            headers = {"X-Api-Key": self.api_key}
+
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching data from Radarr: {e}")
+            return []
+
+    def get_history(self, page_size=1000):
+        if not self.host or not self.api_key:
+            return []
+
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/history"
+            headers = {"X-Api-Key": self.api_key}
+            params = {"pageSize": page_size}
+
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            return response.json().get("records", [])
+        except Exception as e:
+            logger.error(f"Error fetching history from Radarr: {e}")
+            return []
