@@ -1,5 +1,7 @@
 import logging
 import os
+import re
+from collections import Counter
 
 from services.jellyfin import JellyfinClient
 from services.qbittorrent import QBitClient
@@ -39,11 +41,25 @@ class MatcherService:
             minutes = (seconds % 3600) // 60
             return f"{minutes}m"
 
-    def get_aggregated_media(self):
+    def get_aggregated_media(self, config=None):
         """
         Orchestrates fetching data and matching it.
         """
-        logger.info("Starting media sync...")
+        if config is None:
+            config = {
+                "disk_threshold": 90,
+                "min_seed_weeks": 4,
+                "min_ratio": 1.0,
+            }
+
+        logger.info(f"Starting media sync with config: {config}")
+
+        # Check Disk Usage Logic Global
+        disk_usage = self.get_disk_usage()
+        current_disk_percent = disk_usage.get("percent", 0) if disk_usage else 0
+        is_disk_full_check = current_disk_percent >= float(
+            config.get("disk_threshold", 90)
+        )
 
         # 1. Fetch data
         radarr_movies = self.radarr.get_movies()
@@ -76,10 +92,17 @@ class MatcherService:
         for record in sonarr_history:
             s_id = record.get("seriesId")
             d_id = record.get("downloadId")
+            ep = record.get("episode")
             if s_id and d_id:
+                d_id_str = str(d_id).lower()
                 if s_id not in sonarr_hashes:
-                    sonarr_hashes[s_id] = set()
-                sonarr_hashes[s_id].add(str(d_id).lower())
+                    sonarr_hashes[s_id] = {}
+
+                if d_id_str not in sonarr_hashes[s_id]:
+                    sonarr_hashes[s_id][d_id_str] = []
+
+                if ep:
+                    sonarr_hashes[s_id][d_id_str].append(ep)
 
         logger.info(f"Indexed {len(sonarr_hashes)} series with history in Sonarr.")
 
@@ -115,7 +138,12 @@ class MatcherService:
                 "ratio": "N/A",
                 "seed_time": "N/A",
                 "watched": False,
+                "deletable": False,
+                "criteria": {},
             }
+
+            raw_ratio = 0.0
+            raw_seed_time = 0
 
             # Match Torrent
             # 1. Try Hash Match via History
@@ -145,10 +173,10 @@ class MatcherService:
             if matched_torrent:
                 entry["torrent_state"] = matched_torrent.get("state")
                 entry["torrent_hashes"] = [matched_torrent.get("hash")]
-                entry["ratio"] = f"{matched_torrent.get('ratio', 0):.2f}"
-                entry["seed_time"] = self._format_seed_time(
-                    matched_torrent.get("seeding_time", 0)
-                )
+                raw_ratio = matched_torrent.get("ratio", 0)
+                raw_seed_time = matched_torrent.get("seeding_time", 0)
+                entry["ratio"] = f"{raw_ratio:.2f}"
+                entry["seed_time"] = self._format_seed_time(raw_seed_time)
 
             # Match Jellyfin
             m_tmdb = str(movie.get("tmdbId", ""))
@@ -169,6 +197,24 @@ class MatcherService:
                     break
 
             entry["watched"] = is_watched
+
+            # Deletability Logic
+            weeks_seconds = float(config.get("min_seed_weeks", 4)) * 7 * 24 * 3600
+
+            # Check criteria
+            c_disk = is_disk_full_check
+            c_watched = is_watched
+            c_time = raw_seed_time >= weeks_seconds
+            c_ratio = raw_ratio >= float(config.get("min_ratio", 1.0))
+
+            entry["deletable"] = c_disk and c_watched and c_time and c_ratio
+            entry["criteria"] = {
+                "disk": c_disk,
+                "watched": c_watched,
+                "time": c_time,
+                "ratio": c_ratio,
+            }
+
             combined_results.append(entry)
 
         # --- PROCESS SERIES (Sonarr) ---
@@ -186,7 +232,19 @@ class MatcherService:
             else:
                 lib_status = f"Partial ({file_count}/{ep_count})"
 
-            entry = {
+            # Determine Watched Status (Show Level)
+            s_tvdb = str(show.get("tvdbId", ""))
+            is_watched = False
+            for jf_item in jf_data.values():
+                if jf_item.get("Type") == "Series":
+                    p_ids = jf_item.get("ProviderIds", {})
+                    jf_tvdb = str(p_ids.get("Tvdb", ""))
+                    if s_tvdb and s_tvdb == jf_tvdb:
+                        if jf_item.get("Watched"):
+                            is_watched = True
+                        break
+
+            base_entry = {
                 "id": show.get("id"),
                 "origin": "Sonarr",
                 "title": show.get("title"),
@@ -199,75 +257,137 @@ class MatcherService:
                 "torrent_hashes": [],
                 "ratio": "N/A",
                 "seed_time": "N/A",
-                "watched": False,
+                "watched": is_watched,
+                "deletable": False,
+                "criteria": {},
             }
 
-            # Match Torrent
-            matches = set()
-            found_hashes = set()
-            ratios = []
-            seed_times = []
+            # Match Torrents
+            matched_torrents_list = []
+
+            # Map hash to metadata label if available
+            hash_metadata_map = {}
 
             # 1. Try Hash Match via History
             s_id = show.get("id")
             if s_id in sonarr_hashes:
-                for h in sonarr_hashes[s_id]:
+                for h, episodes in sonarr_hashes[s_id].items():
                     if h in torrents_by_hash:
                         t = torrents_by_hash[h]
-                        state = t.get("state")
-                        matches.add(state)
-                        found_hashes.add(h)
-                        ratios.append(t.get("ratio", 0))
-                        seed_times.append(t.get("seeding_time", 0))
+                        matched_torrents_list.append(t)
+
+                        # Determine label from episodes
+                        if episodes:
+                            seasons = sorted(
+                                list(
+                                    set(
+                                        e["seasonNumber"]
+                                        for e in episodes
+                                        if "seasonNumber" in e
+                                    )
+                                )
+                            )
+                            if len(seasons) == 1:
+                                s_num = seasons[0]
+                                if len(episodes) == 1:
+                                    e_num = episodes[0].get("episodeNumber")
+                                    hash_metadata_map[h] = f"S{s_num:02d}E{e_num:02d}"
+                                else:
+                                    hash_metadata_map[h] = f"S{s_num:02d}"
+                            elif len(seasons) > 1:
+                                hash_metadata_map[h] = (
+                                    f"S{seasons[0]:02d}-S{seasons[-1]:02d}"
+                                )
+
                         logger.info(
-                            f"Matched series '{show.get('title')}' by hash {h} (state: {state})"
+                            f"Matched series '{show.get('title')}' by hash {h} (state: {t.get('state')})"
                         )
 
             # 2. Fallback to Path Match
-            if not matches and entry["path"]:
-                show_path = os.path.normpath(entry["path"]).lower()
+            if not matched_torrents_list and base_entry["path"]:
+                show_path = os.path.normpath(base_entry["path"]).lower()
                 for torrent in qbit_torrents:
                     if "content_path" in torrent:
                         t_path = os.path.normpath(torrent["content_path"]).lower()
                         if show_path in t_path:
-                            matches.add(torrent.get("state"))
-                            found_hashes.add(torrent.get("hash"))
-                            ratios.append(torrent.get("ratio", 0))
-                            seed_times.append(torrent.get("seeding_time", 0))
+                            matched_torrents_list.append(torrent)
                             logger.info(
                                 f"Matched series '{show.get('title')}' by path: {t_path}"
                             )
 
-            if matches:
-                entry["torrent_state"] = ", ".join(list(matches))
-                entry["torrent_hashes"] = list(found_hashes)
+            weeks_seconds = float(config.get("min_seed_weeks", 4)) * 7 * 24 * 3600
+            c_disk = is_disk_full_check
+            c_watched = is_watched
 
-                if ratios:
-                    avg_ratio = sum(ratios) / len(ratios)
-                    entry["ratio"] = f"Avg: {avg_ratio:.2f}"
+            if not matched_torrents_list:
+                # No torrents found, just add the Series entry
+                entry = base_entry.copy()
+                # Default deletability is False because no torrent stats
+                entry["deletable"] = False
+                entry["criteria"] = {
+                    "disk": c_disk,
+                    "watched": c_watched,
+                    "time": False,
+                    "ratio": False,
+                }
+                combined_results.append(entry)
+            else:
+                # One entry per torrent
+                # Parse labels first to handle collisions
+                labels = []
+                for t in matched_torrents_list:
+                    t_hash = t.get("hash", "").lower()
+                    # 1. Try metadata from history
+                    if t_hash in hash_metadata_map:
+                        labels.append(hash_metadata_map[t_hash])
+                        continue
 
-                if seed_times:
-                    max_time = max(seed_times)
-                    entry["seed_time"] = f"Max: {self._format_seed_time(max_time)}"
+                    # 2. Fallback to Regex
+                    t_name = t.get("name", "")
+                    # Regex for SxxExx or Sxx
+                    match = re.search(r"(?i)\bS(\d+)(?:E(\d+))?\b", t_name)
+                    lbl = None
+                    if match:
+                        season = match.group(1)
+                        episode = match.group(2)
+                        if episode:
+                            lbl = f"S{season}E{episode}"
+                        else:
+                            lbl = f"S{season}"
+                    labels.append(lbl)
 
-            # Match Jellyfin
-            s_tvdb = str(show.get("tvdbId", ""))
+                label_counts = Counter([l for l in labels if l])
 
-            # Since we focused on Movies and Episodes in JF client,
-            # we try to match Series if available, or rely on aggregation later.
-            # Currently this might not find matches if "Series" type isn't fetched.
-            is_watched = False
-            for jf_item in jf_data.values():
-                if jf_item.get("Type") == "Series":
-                    p_ids = jf_item.get("ProviderIds", {})
-                    jf_tvdb = str(p_ids.get("Tvdb", ""))
-                    if s_tvdb and s_tvdb == jf_tvdb:
-                        if jf_item.get("Watched"):
-                            is_watched = True
-                        break
+                for i, t in enumerate(matched_torrents_list):
+                    entry = base_entry.copy()
+                    t_name = t.get("name", "")
+                    lbl = labels[i]
 
-            entry["watched"] = is_watched
-            combined_results.append(entry)
+                    # Title Logic
+                    if lbl and label_counts[lbl] == 1:
+                        entry["title"] = f"{base_entry['title']} {lbl}"
+                    elif t_name:
+                        entry["title"] = f"{base_entry['title']} - {t_name}"
+
+                    raw_ratio = t.get("ratio", 0)
+                    raw_seed_time = t.get("seeding_time", 0)
+
+                    entry["torrent_state"] = t.get("state")
+                    entry["torrent_hashes"] = [t.get("hash")]
+                    entry["ratio"] = f"{raw_ratio:.2f}"
+                    entry["seed_time"] = self._format_seed_time(raw_seed_time)
+
+                    c_time = raw_seed_time >= weeks_seconds
+                    c_ratio = raw_ratio >= float(config.get("min_ratio", 1.0))
+
+                    entry["deletable"] = c_disk and c_watched and c_time and c_ratio
+                    entry["criteria"] = {
+                        "disk": c_disk,
+                        "watched": c_watched,
+                        "time": c_time,
+                        "ratio": c_ratio,
+                    }
+                    combined_results.append(entry)
 
         logger.info(f"Processed {len(combined_results)} media items.")
         return combined_results

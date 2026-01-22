@@ -54,7 +54,7 @@ class SonarrClient:
             base_url = self.host.rstrip("/")
             url = f"{base_url}/api/v3/history"
             headers = {"X-Api-Key": self.api_key}
-            params = {"pageSize": page_size}
+            params = {"pageSize": page_size, "includeEpisode": "true"}
 
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()

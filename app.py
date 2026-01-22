@@ -14,10 +14,21 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
+    config = {
+        "disk_threshold": request.args.get("disk_threshold", 90, type=int),
+        "min_seed_weeks": request.args.get("min_seed_weeks", 4, type=int),
+        "min_ratio": request.args.get("min_ratio", 1.0, type=float),
+    }
+
     matcher = MatcherService()
     disk_usage = matcher.get_disk_usage()
-    media_items = matcher.get_aggregated_media()
-    return render_template("index.html", media_items=media_items, disk_usage=disk_usage)
+    media_items = matcher.get_aggregated_media(config=config)
+    return render_template(
+        "index.html",
+        media_items=media_items,
+        disk_usage=disk_usage,
+        config=config,
+    )
 
 
 @app.route("/delete", methods=["POST"])

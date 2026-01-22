@@ -60,11 +60,28 @@
                 color: #6c757d;
                 font-style: italic;
             }
+            .crit-met {
+                color: green;
+                cursor: help;
+            }
+            .crit-fail {
+                color: #ccc;
+                cursor: help;
+                opacity: 0.3;
+            }
         </style>
     </head>
     <body>
         <h1>Media Cleanerr</h1>
         <p>Overview of media in your library, their torrent status, and if they have been watched.</p>
+
+        <form action="/" method="GET" style="background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ddd">
+            <strong style="margin-right: 10px">Deletability Rules:</strong>
+            <label style="margin-right: 10px">Disk > <input type="number" name="disk_threshold" value="{{ config.disk_threshold }}" style="width: 50px" />%</label>
+            <label style="margin-right: 10px">Seed > <input type="number" name="min_seed_weeks" value="{{ config.min_seed_weeks }}" style="width: 50px" /> weeks</label>
+            <label style="margin-right: 10px">Ratio > <input type="number" step="0.1" name="min_ratio" value="{{ config.min_ratio }}" style="width: 50px" /></label>
+            <button type="submit">Apply</button>
+        </form>
 
         {% if disk_usage %}
         <div style="margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px">
@@ -87,6 +104,8 @@
                     <th>Ratio</th>
                     <th>Seed Time</th>
                     <th>Watched (Any User)</th>
+                    <th>Criteria</th>
+                    <th>Deletable?</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -101,6 +120,13 @@
                     <td>{{ item.ratio }}</td>
                     <td>{{ item.seed_time }}</td>
                     <td class="{{ 'watched-yes' if item.watched else 'watched-no' }}">{{ 'Yes' if item.watched else 'No' }}</td>
+                    <td>
+                        <span title="Disk > {{ config.disk_threshold }}%" class="{{ 'crit-met' if item.criteria.disk else 'crit-fail' }}">💽</span>
+                        <span title="Watched" class="{{ 'crit-met' if item.criteria.watched else 'crit-fail' }}">👁️</span>
+                        <span title="Seed > {{ config.min_seed_weeks }}w" class="{{ 'crit-met' if item.criteria.time else 'crit-fail' }}">⏳</span>
+                        <span title="Ratio > {{ config.min_ratio }}" class="{{ 'crit-met' if item.criteria.ratio else 'crit-fail' }}">📈</span>
+                    </td>
+                    <td style="font-weight: bold; color: {{ 'green' if item.deletable else 'red' }}">{{ 'YES' if item.deletable else 'NO' }}</td>
                     <td>
                         <form action="/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ item.title }}? This will remove files and torrents.');">
                             <input type="hidden" name="origin" value="{{ item.origin }}" />
