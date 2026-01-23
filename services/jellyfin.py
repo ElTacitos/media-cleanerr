@@ -1,15 +1,17 @@
 import logging
 
-import config
 import requests
+
+from services.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
 class JellyfinClient:
     def __init__(self):
-        self.host = config.JELLYFIN_HOST
-        self.api_key = config.JELLYFIN_API_KEY
+        config = ConfigManager()
+        self.host = config.get("JELLYFIN_HOST")
+        self.api_key = config.get("JELLYFIN_API_KEY")
         self.users = []
 
     def _get_headers(self):

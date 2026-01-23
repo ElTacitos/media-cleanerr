@@ -6,28 +6,11 @@ services:
     container_name: media-cleanerr
     ports:
       - "5000:5000"
+    volumes:
+      - ./config:/app/config
     environment:
       # Application Settings
       - FLASK_APP=app.py
       - FLASK_DEBUG=1
-
-      # qBittorrent Configuration
-      - QBIT_HOST=http://192.168.1.64:8080
-      - QBIT_USERNAME=admin
-      - QBIT_PASSWORD=adminadmin
-
-      # Radarr Configuration
-      - RADARR_HOST=http://192.168.1.64:7878
-      - RADARR_API_KEY=XXX
-
-      # Sonarr Configuration
-      - SONARR_HOST=http://192.168.1.64:8989
-      - SONARR_API_KEY=XXX
-
-      # Jellyfin Configuration
-      - JELLYFIN_HOST=http://192.168.1.64:8096
-      - JELLYFIN_API_KEY=XXX
-      # Optional: Jellyfin user ID if we want to scope to specific user,
-      # but requirements say "at least one user", so we likely need to fetch all users.
 
     restart: unless-stopped

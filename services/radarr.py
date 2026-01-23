@@ -1,15 +1,17 @@
 import logging
 
-import config
 import requests
+
+from services.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
 class RadarrClient:
     def __init__(self):
-        self.host = config.RADARR_HOST
-        self.api_key = config.RADARR_API_KEY
+        config = ConfigManager()
+        self.host = config.get("RADARR_HOST")
+        self.api_key = config.get("RADARR_API_KEY")
 
     def get_movies(self):
         if not self.host or not self.api_key:

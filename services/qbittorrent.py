@@ -1,16 +1,18 @@
 import logging
 
-import config
 import requests
+
+from services.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
 class QBitClient:
     def __init__(self):
-        self.host = config.QBIT_HOST
-        self.username = config.QBIT_USERNAME
-        self.password = config.QBIT_PASSWORD
+        config = ConfigManager()
+        self.host = config.get("QBIT_HOST")
+        self.username = config.get("QBIT_USERNAME")
+        self.password = config.get("QBIT_PASSWORD")
         self.session = requests.Session()
         self.authenticated = False
 

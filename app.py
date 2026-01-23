@@ -1,6 +1,14 @@
 import logging
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    redirect,
+    render_template,
+    render_template_string,
+    request,
+    url_for,
+)
+from services.config_manager import ConfigManager
 from services.matcher import MatcherService
 from services.qbittorrent import QBitClient
 from services.radarr import RadarrClient
@@ -15,10 +23,21 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
+    cm = ConfigManager()
+
+    if "disk_threshold" in request.args:
+        cm.update(
+            {
+                "DISK_THRESHOLD": request.args.get("disk_threshold", 90, type=int),
+                "MIN_SEED_WEEKS": request.args.get("min_seed_weeks", 4, type=int),
+                "MIN_RATIO": request.args.get("min_ratio", 1.0, type=float),
+            }
+        )
+
     config = {
-        "disk_threshold": request.args.get("disk_threshold", 90, type=int),
-        "min_seed_weeks": request.args.get("min_seed_weeks", 4, type=int),
-        "min_ratio": request.args.get("min_ratio", 1.0, type=float),
+        "disk_threshold": cm.get("DISK_THRESHOLD", 90),
+        "min_seed_weeks": cm.get("MIN_SEED_WEEKS", 4),
+        "min_ratio": cm.get("MIN_RATIO", 1.0),
     }
     return render_template("index.html", config=config)
 
@@ -39,10 +58,11 @@ def disk_html():
 
 @app.route("/api/media_html")
 def media_html():
+    cm = ConfigManager()
     config = {
-        "disk_threshold": request.args.get("disk_threshold", 90, type=int),
-        "min_seed_weeks": request.args.get("min_seed_weeks", 4, type=int),
-        "min_ratio": request.args.get("min_ratio", 1.0, type=float),
+        "disk_threshold": cm.get("DISK_THRESHOLD", 90),
+        "min_seed_weeks": cm.get("MIN_SEED_WEEKS", 4),
+        "min_ratio": cm.get("MIN_RATIO", 1.0),
     }
     matcher = MatcherService()
     media_items = matcher.get_aggregated_media(config=config)
@@ -79,6 +99,83 @@ def delete_media():
         client.delete_series(media_id)
 
     return redirect(url_for("index"))
+
+
+SETTINGS_TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+    <title>Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: sans-serif; margin: 0 auto; max-width: 600px; padding: 20px; }
+        label { font-weight: bold; display: block; margin-top: 15px; }
+        input { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+        hr { margin: 20px 0; border: 0; border-top: 1px solid #ccc; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; margin-top: 20px; }
+        a { display: inline-block; margin-top: 20px; margin-left: 10px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>App Settings</h1>
+    <form method="post">
+        <h2>Radarr</h2>
+        <label>Host URL</label>
+        <input name="RADARR_HOST" value="{{ c.RADARR_HOST or '' }}" placeholder="http://radarr:7878">
+        <label>API Key</label>
+        <input type="password" name="RADARR_API_KEY" value="{{ c.RADARR_API_KEY or '' }}">
+
+        <hr>
+        <h2>Sonarr</h2>
+        <label>Host URL</label>
+        <input name="SONARR_HOST" value="{{ c.SONARR_HOST or '' }}" placeholder="http://sonarr:8989">
+        <label>API Key</label>
+        <input type="password" name="SONARR_API_KEY" value="{{ c.SONARR_API_KEY or '' }}">
+
+        <hr>
+        <h2>qBittorrent</h2>
+        <label>Host URL</label>
+        <input name="QBIT_HOST" value="{{ c.QBIT_HOST or '' }}" placeholder="http://qbittorrent:8080">
+        <label>Username</label>
+        <input name="QBIT_USERNAME" value="{{ c.QBIT_USERNAME or '' }}">
+        <label>Password</label>
+        <input type="password" name="QBIT_PASSWORD" value="{{ c.QBIT_PASSWORD or '' }}">
+
+        <hr>
+        <h2>Jellyfin</h2>
+        <label>Host URL</label>
+        <input name="JELLYFIN_HOST" value="{{ c.JELLYFIN_HOST or '' }}" placeholder="http://jellyfin:8096">
+        <label>API Key</label>
+        <input type="password" name="JELLYFIN_API_KEY" value="{{ c.JELLYFIN_API_KEY or '' }}">
+
+        <hr>
+        <button type="submit">Save Settings</button>
+        <a href="/">Cancel</a>
+    </form>
+</body>
+</html>
+"""
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    cm = ConfigManager()
+    if request.method == "POST":
+        new_config = {
+            "RADARR_HOST": request.form.get("RADARR_HOST"),
+            "RADARR_API_KEY": request.form.get("RADARR_API_KEY"),
+            "SONARR_HOST": request.form.get("SONARR_HOST"),
+            "SONARR_API_KEY": request.form.get("SONARR_API_KEY"),
+            "QBIT_HOST": request.form.get("QBIT_HOST"),
+            "QBIT_USERNAME": request.form.get("QBIT_USERNAME"),
+            "QBIT_PASSWORD": request.form.get("QBIT_PASSWORD"),
+            "JELLYFIN_HOST": request.form.get("JELLYFIN_HOST"),
+            "JELLYFIN_API_KEY": request.form.get("JELLYFIN_API_KEY"),
+        }
+        cm.update(new_config)
+        return redirect(url_for("index"))
+
+    return render_template_string(SETTINGS_TEMPLATE, c=cm.get_all())
 
 
 if __name__ == "__main__":

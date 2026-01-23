@@ -1,15 +1,17 @@
 import logging
 
-import config
 import requests
+
+from services.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
 class SonarrClient:
     def __init__(self):
-        self.host = config.SONARR_HOST
-        self.api_key = config.SONARR_API_KEY
+        config = ConfigManager()
+        self.host = config.get("SONARR_HOST")
+        self.api_key = config.get("SONARR_API_KEY")
 
     def get_series(self):
         if not self.host or not self.api_key:
