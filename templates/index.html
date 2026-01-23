@@ -75,11 +75,7 @@
         <h1>Media Cleanerr</h1>
         <p>Overview of media in your library, their torrent status, and if they have been watched.</p>
 
-        <div style="margin-bottom: 20px">
-            {% for service, status in service_statuses.items() %}
-            <span style="display: inline-block; padding: 5px 10px; margin-right: 10px; border-radius: 4px; color: white; background-color: {{ 'green' if status else 'red' }}"> {{ service }}: {{ 'Online' if status else 'Offline' }} </span>
-            {% endfor %}
-        </div>
+        <div id="status-container" style="margin-bottom: 20px">Loading System Status...</div>
 
         <form action="/" method="GET" style="background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ddd">
             <strong style="margin-right: 10px">Deletability Rules:</strong>
@@ -89,15 +85,9 @@
             <button type="submit">Apply</button>
         </form>
 
-        {% if disk_usage %}
-        <div style="margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px">
-            <h3 style="margin-top: 0">Disk Usage ({{ disk_usage.path }})</h3>
-            <div style="background-color: #fff; width: 100%; height: 20px; border-radius: 10px; border: 1px solid #ccc; overflow: hidden">
-                <div style="background-color: {% if disk_usage.percent > 90 %}#dc3545{% elif disk_usage.percent > 75 %}#ffc107{% else %}#28a745{% endif %}; width: {{ disk_usage.percent }}%; height: 100%;"></div>
-            </div>
-            <p style="margin-bottom: 0; margin-top: 5px">{{ disk_usage.percent }}% Used ({{ disk_usage.free }} free of {{ disk_usage.total }})</p>
+        <div id="disk-container">
+            <!-- Disk Usage Loading -->
         </div>
-        {% endif %}
 
         <table>
             <thead>
@@ -115,35 +105,43 @@
                     <th>Action</th>
                 </tr>
             </thead>
-            <tbody>
-                {% for item in media_items %}
+            <tbody id="media-body">
                 <tr>
-                    <td>{{ item.title }}</td>
-                    <td class="origin-{{ item.origin|lower }}">{{ item.origin }}</td>
-                    <td>{{ item.year }}</td>
-                    <td class="{% if item.status == 'Downloaded' %}status-downloaded {% elif item.status == 'Missing' %}status-missing {% elif 'Partial' in item.status %}status-partial {% elif item.status == 'Unmonitored' %}status-unmonitored {% endif %}">{{ item.status }}</td>
-                    <td>{{ item.torrent_state }}</td>
-                    <td>{{ item.ratio }}</td>
-                    <td>{{ item.seed_time }}</td>
-                    <td class="{{ 'watched-yes' if item.watched else 'watched-no' }}">{{ 'Yes' if item.watched else 'No' }}</td>
-                    <td>
-                        <span title="Disk > {{ config.disk_threshold }}%" class="{{ 'crit-met' if item.criteria.disk else 'crit-fail' }}">💽</span>
-                        <span title="Watched" class="{{ 'crit-met' if item.criteria.watched else 'crit-fail' }}">👁️</span>
-                        <span title="Seed > {{ config.min_seed_weeks }}w" class="{{ 'crit-met' if item.criteria.time else 'crit-fail' }}">⏳</span>
-                        <span title="Ratio > {{ config.min_ratio }}" class="{{ 'crit-met' if item.criteria.ratio else 'crit-fail' }}">📈</span>
-                    </td>
-                    <td style="font-weight: bold; color: {{ 'green' if item.deletable else 'red' }}">{{ 'YES' if item.deletable else 'NO' }}</td>
-                    <td>
-                        <form action="/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ item.title }}? This will remove files and torrents.');">
-                            <input type="hidden" name="origin" value="{{ item.origin }}" />
-                            <input type="hidden" name="id" value="{{ item.id }}" />
-                            <input type="hidden" name="torrent_hashes" value="{{ item.torrent_hashes|join(',') }}" />
-                            <button type="submit" style="color: white; background-color: red; border: none; padding: 5px 10px; cursor: pointer">Delete</button>
-                        </form>
-                    </td>
+                    <td colspan="11" style="text-align: center; padding: 20px">Loading Media Library... This might take a few seconds...</td>
                 </tr>
-                {% endfor %}
             </tbody>
         </table>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const searchParams = window.location.search;
+
+                // Load Status
+                fetch("/api/status_html")
+                    .then((res) => res.text())
+                    .then((html) => {
+                        document.getElementById("status-container").innerHTML = html;
+                    })
+                    .catch((err) => {
+                        document.getElementById("status-container").innerHTML = "Error loading status.";
+                    });
+
+                // Load Disk Usage
+                fetch("/api/disk_html")
+                    .then((res) => res.text())
+                    .then((html) => {
+                        document.getElementById("disk-container").innerHTML = html;
+                    });
+
+                // Load Media Items
+                fetch("/api/media_html" + searchParams)
+                    .then((res) => res.text())
+                    .then((html) => {
+                        document.getElementById("media-body").innerHTML = html;
+                    })
+                    .catch((err) => {
+                        document.getElementById("media-body").innerHTML = '<tr><td colspan="11" style="text-align: center; color: red">Error loading media data. Please check logs.</td></tr>';
+                    });
+            });
+        </script>
     </body>
 </html>

@@ -19,17 +19,34 @@ def index():
         "min_seed_weeks": request.args.get("min_seed_weeks", 4, type=int),
         "min_ratio": request.args.get("min_ratio", 1.0, type=float),
     }
+    return render_template("index.html", config=config)
 
+
+@app.route("/api/status_html")
+def status_html():
+    matcher = MatcherService()
+    service_statuses = matcher.get_service_statuses()
+    return render_template("partials/status.html", service_statuses=service_statuses)
+
+
+@app.route("/api/disk_html")
+def disk_html():
     matcher = MatcherService()
     disk_usage = matcher.get_disk_usage()
-    service_statuses = matcher.get_service_statuses()
+    return render_template("partials/disk.html", disk_usage=disk_usage)
+
+
+@app.route("/api/media_html")
+def media_html():
+    config = {
+        "disk_threshold": request.args.get("disk_threshold", 90, type=int),
+        "min_seed_weeks": request.args.get("min_seed_weeks", 4, type=int),
+        "min_ratio": request.args.get("min_ratio", 1.0, type=float),
+    }
+    matcher = MatcherService()
     media_items = matcher.get_aggregated_media(config=config)
     return render_template(
-        "index.html",
-        media_items=media_items,
-        disk_usage=disk_usage,
-        service_statuses=service_statuses,
-        config=config,
+        "partials/media_rows.html", media_items=media_items, config=config
     )
 
 
