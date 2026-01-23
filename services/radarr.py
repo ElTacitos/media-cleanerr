@@ -21,7 +21,7 @@ class RadarrClient:
             url = f"{base_url}/api/v3/movie"
             headers = {"X-Api-Key": self.api_key}
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 60))
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -38,7 +38,9 @@ class RadarrClient:
             headers = {"X-Api-Key": self.api_key}
             params = {"pageSize": page_size}
 
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(
+                url, headers=headers, params=params, timeout=(5, 60)
+            )
             response.raise_for_status()
             return response.json().get("records", [])
         except Exception as e:
@@ -55,7 +57,9 @@ class RadarrClient:
             headers = {"X-Api-Key": self.api_key}
             params = {"deleteFiles": "true"}
 
-            response = requests.delete(url, headers=headers, params=params)
+            response = requests.delete(
+                url, headers=headers, params=params, timeout=(5, 60)
+            )
             response.raise_for_status()
             logger.info(f"Deleted movie {movie_id} from Radarr.")
             return True
@@ -72,7 +76,7 @@ class RadarrClient:
             url = f"{base_url}/api/v3/diskspace"
             headers = {"X-Api-Key": self.api_key}
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 30))
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -88,9 +92,21 @@ class RadarrClient:
             url = f"{base_url}/api/v3/rootfolder"
             headers = {"X-Api-Key": self.api_key}
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 30))
             response.raise_for_status()
             return response.json()
         except Exception as e:
             logger.error(f"Error fetching root folders from Radarr: {e}")
             return []
+
+    def check_connection(self):
+        if not self.host or not self.api_key:
+            return False
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/system/status"
+            headers = {"X-Api-Key": self.api_key}
+            requests.get(url, headers=headers, timeout=5).raise_for_status()
+            return True
+        except Exception:
+            return False

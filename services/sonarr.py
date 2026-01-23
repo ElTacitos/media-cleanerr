@@ -21,7 +21,7 @@ class SonarrClient:
             url = f"{base_url}/api/v3/series"
             headers = {"X-Api-Key": self.api_key}
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 60))
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -37,7 +37,7 @@ class SonarrClient:
             url = f"{base_url}/api/v3/episode?seriesId={series_id}"
             headers = {"X-Api-Key": self.api_key}
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 60))
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -56,7 +56,9 @@ class SonarrClient:
             headers = {"X-Api-Key": self.api_key}
             params = {"pageSize": page_size, "includeEpisode": "true"}
 
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(
+                url, headers=headers, params=params, timeout=(5, 60)
+            )
             response.raise_for_status()
             return response.json().get("records", [])
         except Exception as e:
@@ -73,10 +75,24 @@ class SonarrClient:
             headers = {"X-Api-Key": self.api_key}
             params = {"deleteFiles": "true"}
 
-            response = requests.delete(url, headers=headers, params=params)
+            response = requests.delete(
+                url, headers=headers, params=params, timeout=(5, 60)
+            )
             response.raise_for_status()
             logger.info(f"Deleted series {series_id} from Sonarr.")
             return True
         except Exception as e:
             logger.error(f"Error deleting series {series_id} from Sonarr: {e}")
+            return False
+
+    def check_connection(self):
+        if not self.host or not self.api_key:
+            return False
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/api/v3/system/status"
+            headers = {"X-Api-Key": self.api_key}
+            requests.get(url, headers=headers, timeout=5).raise_for_status()
+            return True
+        except Exception:
             return False

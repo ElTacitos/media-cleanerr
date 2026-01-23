@@ -24,7 +24,7 @@ class QBitClient:
             url = f"{base_url}/api/v2/auth/login"
             data = {"username": self.username, "password": self.password}
 
-            response = self.session.post(url, data=data)
+            response = self.session.post(url, data=data, timeout=(5, 30))
             response.raise_for_status()
 
             if response.text == "Fails.":
@@ -52,13 +52,13 @@ class QBitClient:
             base_url = self.host.rstrip("/")
             url = f"{base_url}/api/v2/torrents/info"
 
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=(5, 60))
 
             # If 403, maybe session expired? Try relogin once.
             if response.status_code == 403:
                 logger.info("Session expired, retrying login...")
                 if self.login():
-                    response = self.session.get(url)
+                    response = self.session.get(url, timeout=(5, 60))
                 else:
                     return []
 
@@ -82,10 +82,13 @@ class QBitClient:
             # deleteFiles=true to remove content
             data = {"hashes": torrent_hash, "deleteFiles": "true"}
 
-            response = self.session.post(url, data=data)
+            response = self.session.post(url, data=data, timeout=(5, 60))
             response.raise_for_status()
             logger.info(f"Deleted torrent {torrent_hash} from qBittorrent.")
             return True
         except Exception as e:
             logger.error(f"Error deleting torrent {torrent_hash}: {e}")
             return False
+
+    def check_connection(self):
+        return self.login()

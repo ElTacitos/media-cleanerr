@@ -28,7 +28,7 @@ class JellyfinClient:
             url = f"{base_url}/Users"
             headers = self._get_headers()
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=(5, 60))
             response.raise_for_status()
             self.users = response.json()
             return self.users
@@ -54,7 +54,9 @@ class JellyfinClient:
             }
             headers = self._get_headers()
 
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(
+                url, headers=headers, params=params, timeout=(5, 60)
+            )
             response.raise_for_status()
             return response.json().get("Items", [])
         except Exception as e:
@@ -113,3 +115,15 @@ class JellyfinClient:
                         aggregated_data[item_id]["Watched"] = True
 
         return aggregated_data
+
+    def check_connection(self):
+        if not self.host or not self.api_key:
+            return False
+        try:
+            base_url = self.host.rstrip("/")
+            url = f"{base_url}/System/Info"
+            headers = self._get_headers()
+            requests.get(url, headers=headers, timeout=5).raise_for_status()
+            return True
+        except Exception:
+            return False

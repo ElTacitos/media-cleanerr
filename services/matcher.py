@@ -442,3 +442,11 @@ class MatcherService:
                 "percent": round(percent, 2),
             }
         return None
+
+    def get_service_statuses(self):
+        return {
+            "Radarr": self.radarr.check_connection(),
+            "Sonarr": self.sonarr.check_connection(),
+            "qBittorrent": self.qbit.check_connection(),
+            "Jellyfin": self.jellyfin.check_connection(),
+        }

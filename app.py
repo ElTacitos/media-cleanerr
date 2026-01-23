@@ -22,11 +22,13 @@ def index():
 
     matcher = MatcherService()
     disk_usage = matcher.get_disk_usage()
+    service_statuses = matcher.get_service_statuses()
     media_items = matcher.get_aggregated_media(config=config)
     return render_template(
         "index.html",
         media_items=media_items,
         disk_usage=disk_usage,
+        service_statuses=service_statuses,
         config=config,
     )
 
