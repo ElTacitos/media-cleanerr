@@ -140,6 +140,7 @@ class MatcherService:
                 "watched": False,
                 "deletable": False,
                 "criteria": {},
+                "torrents": [],
             }
 
             raw_ratio = 0.0
@@ -177,6 +178,17 @@ class MatcherService:
                 raw_seed_time = matched_torrent.get("seeding_time", 0)
                 entry["ratio"] = f"{raw_ratio:.2f}"
                 entry["seed_time"] = self._format_seed_time(raw_seed_time)
+
+                entry["torrents"] = [
+                    {
+                        "hash": matched_torrent.get("hash"),
+                        "name": matched_torrent.get("name"),
+                        "label": "Movie",
+                        "state": matched_torrent.get("state"),
+                        "ratio": f"{raw_ratio:.2f}",
+                        "seed_time": self._format_seed_time(raw_seed_time),
+                    }
+                ]
 
             # Match Jellyfin
             m_tmdb = str(movie.get("tmdbId", ""))
@@ -244,7 +256,7 @@ class MatcherService:
                             is_watched = True
                         break
 
-            base_entry = {
+            entry = {
                 "id": show.get("id"),
                 "origin": "Sonarr",
                 "title": show.get("title"),
@@ -260,6 +272,7 @@ class MatcherService:
                 "watched": is_watched,
                 "deletable": False,
                 "criteria": {},
+                "torrents": [],
             }
 
             # Match Torrents
@@ -319,20 +332,7 @@ class MatcherService:
             c_disk = is_disk_full_check
             c_watched = is_watched
 
-            if not matched_torrents_list:
-                # No torrents found, just add the Series entry
-                entry = base_entry.copy()
-                # Default deletability is False because no torrent stats
-                entry["deletable"] = False
-                entry["criteria"] = {
-                    "disk": c_disk,
-                    "watched": c_watched,
-                    "time": False,
-                    "ratio": False,
-                }
-                combined_results.append(entry)
-            else:
-                # One entry per torrent
+            if matched_torrents_list:
                 # Parse labels first to handle collisions
                 labels = []
                 for t in matched_torrents_list:
@@ -357,37 +357,73 @@ class MatcherService:
                     labels.append(lbl)
 
                 label_counts = Counter([l for l in labels if l])
+                torrents_data = []
+                all_ratios = []
+                all_seed_times = []
+                all_states = set()
 
                 for i, t in enumerate(matched_torrents_list):
-                    entry = base_entry.copy()
                     t_name = t.get("name", "")
                     lbl = labels[i]
-
-                    # Title Logic
+                    display_label = t_name
                     if lbl and label_counts[lbl] == 1:
-                        entry["title"] = f"{base_entry['title']} {lbl}"
-                    elif t_name:
-                        entry["title"] = f"{base_entry['title']} - {t_name}"
+                        display_label = lbl
+                    elif lbl:
+                        display_label = f"{lbl} ({t_name})"
 
                     raw_ratio = t.get("ratio", 0)
                     raw_seed_time = t.get("seeding_time", 0)
 
-                    entry["torrent_state"] = t.get("state")
-                    entry["torrent_hashes"] = [t.get("hash")]
-                    entry["ratio"] = f"{raw_ratio:.2f}"
-                    entry["seed_time"] = self._format_seed_time(raw_seed_time)
+                    all_ratios.append(raw_ratio)
+                    all_seed_times.append(raw_seed_time)
+                    all_states.add(t.get("state"))
 
-                    c_time = raw_seed_time >= weeks_seconds
-                    c_ratio = raw_ratio >= float(config.get("min_ratio", 1.0))
-
-                    entry["deletable"] = c_disk and c_watched and c_time and c_ratio
-                    entry["criteria"] = {
-                        "disk": c_disk,
-                        "watched": c_watched,
-                        "time": c_time,
-                        "ratio": c_ratio,
+                    t_entry = {
+                        "hash": t.get("hash"),
+                        "name": t_name,
+                        "label": display_label,
+                        "state": t.get("state"),
+                        "ratio_raw": raw_ratio,
+                        "ratio": f"{raw_ratio:.2f}",
+                        "seed_time_raw": raw_seed_time,
+                        "seed_time": self._format_seed_time(raw_seed_time),
                     }
-                    combined_results.append(entry)
+                    torrents_data.append(t_entry)
+
+                # Aggregated Stats
+                entry["torrents"] = torrents_data
+                entry["torrent_hashes"] = [t["hash"] for t in torrents_data]
+                entry["torrent_state"] = ", ".join(list(all_states))
+
+                avg_ratio = sum(all_ratios) / len(all_ratios) if all_ratios else 0
+                max_time = max(all_seed_times) if all_seed_times else 0
+                min_time = min(all_seed_times) if all_seed_times else 0
+
+                entry["ratio"] = f"Avg: {avg_ratio:.2f}"
+                entry["seed_time"] = f"Max: {self._format_seed_time(max_time)}"
+
+                # Series Deletability: Use Min Time and Avg Ratio
+                c_time = min_time >= weeks_seconds
+                c_ratio = avg_ratio >= float(config.get("min_ratio", 1.0))
+
+                entry["deletable"] = c_disk and c_watched and c_time and c_ratio
+                entry["criteria"] = {
+                    "disk": c_disk,
+                    "watched": c_watched,
+                    "time": c_time,
+                    "ratio": c_ratio,
+                }
+            else:
+                # No torrents found
+                entry["deletable"] = False
+                entry["criteria"] = {
+                    "disk": c_disk,
+                    "watched": c_watched,
+                    "time": False,
+                    "ratio": False,
+                }
+
+            combined_results.append(entry)
 
         logger.info(f"Processed {len(combined_results)} media items.")
         return combined_results

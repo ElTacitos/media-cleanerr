@@ -1,3 +1,3 @@
 {% for service, status in service_statuses.items() %}
-<span style="display: inline-block; padding: 5px 10px; margin-right: 10px; border-radius: 4px; color: white; background-color: {{ 'green' if status else 'red' }}"> {{ service }}: {{ 'Online' if status else 'Offline' }} </span>
+<span class="badge {{ 'bg-success' if status else 'bg-danger' }} fs-6">{{ service }}: {{ 'Online' if status else 'Offline' }}</span>
 {% endfor %}

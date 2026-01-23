@@ -1,26 +1,26 @@
 {% for item in media_items %}
 <tr>
     <td>{{ item.title }}</td>
-    <td class="origin-{{ item.origin|lower }}">{{ item.origin }}</td>
+    <td><span class="badge {{ 'bg-primary' if item.origin == 'Radarr' else 'bg-info text-dark' }}">{{ item.origin }}</span></td>
     <td>{{ item.year }}</td>
-    <td class="{% if item.status == 'Downloaded' %}status-downloaded {% elif item.status == 'Missing' %}status-missing {% elif 'Partial' in item.status %}status-partial {% elif item.status == 'Unmonitored' %}status-unmonitored {% endif %}">{{ item.status }}</td>
+    <td class="{% if item.status == 'Downloaded' %}text-success fw-bold{% elif item.status == 'Missing' %}text-danger fw-bold{% elif 'Partial' in item.status %}text-warning fw-bold{% elif item.status == 'Unmonitored' %}text-muted fst-italic{% endif %}">{{ item.status }}</td>
     <td>{{ item.torrent_state }}</td>
     <td>{{ item.ratio }}</td>
     <td>{{ item.seed_time }}</td>
-    <td class="{{ 'watched-yes' if item.watched else 'watched-no' }}">{{ 'Yes' if item.watched else 'No' }}</td>
+    <td class="{{ 'text-success fw-bold' if item.watched else 'text-danger' }}">{{ 'Yes' if item.watched else 'No' }}</td>
     <td>
-        <span title="Disk > {{ config.disk_threshold }}%" class="{{ 'crit-met' if item.criteria.disk else 'crit-fail' }}">💽</span>
-        <span title="Watched" class="{{ 'crit-met' if item.criteria.watched else 'crit-fail' }}">👁️</span>
-        <span title="Seed > {{ config.min_seed_weeks }}w" class="{{ 'crit-met' if item.criteria.time else 'crit-fail' }}">⏳</span>
-        <span title="Ratio > {{ config.min_ratio }}" class="{{ 'crit-met' if item.criteria.ratio else 'crit-fail' }}">📈</span>
+        <span title="Disk > {{ config.disk_threshold }}%" class="{{ 'text-success' if item.criteria.disk else 'text-muted opacity-25' }} fs-5">💽</span>
+        <span title="Watched" class="{{ 'text-success' if item.criteria.watched else 'text-muted opacity-25' }} fs-5">👁️</span>
+        <span title="Seed > {{ config.min_seed_weeks }}w" class="{{ 'text-success' if item.criteria.time else 'text-muted opacity-25' }} fs-5">⏳</span>
+        <span title="Ratio > {{ config.min_ratio }}" class="{{ 'text-success' if item.criteria.ratio else 'text-muted opacity-25' }} fs-5">📈</span>
     </td>
-    <td style="font-weight: bold; color: {{ 'green' if item.deletable else 'red' }}">{{ 'YES' if item.deletable else 'NO' }}</td>
+    <td><span class="badge {{ 'bg-success' if item.deletable else 'bg-danger' }}">{{ 'YES' if item.deletable else 'NO' }}</span></td>
     <td>
         <form action="/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ item.title }}? This will remove files and torrents.');">
             <input type="hidden" name="origin" value="{{ item.origin }}" />
             <input type="hidden" name="id" value="{{ item.id }}" />
             <input type="hidden" name="torrent_hashes" value="{{ item.torrent_hashes|join(',') }}" />
-            <button type="submit" style="color: white; background-color: red; border: none; padding: 5px 10px; cursor: pointer">Delete</button>
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
         </form>
     </td>
 </tr>

@@ -1,9 +1,13 @@
 {% if disk_usage %}
-<div style="margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px">
-    <h3 style="margin-top: 0">Disk Usage ({{ disk_usage.path }})</h3>
-    <div style="background-color: #fff; width: 100%; height: 20px; border-radius: 10px; border: 1px solid #ccc; overflow: hidden">
-        <div style="background-color: {% if disk_usage.percent > 90 %}#dc3545{% elif disk_usage.percent > 75 %}#ffc107{% else %}#28a745{% endif %}; width: {{ disk_usage.percent }}%; height: 100%;"></div>
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <strong>Disk Usage ({{ disk_usage.path }})</strong>
     </div>
-    <p style="margin-bottom: 0; margin-top: 5px">{{ disk_usage.percent }}% Used ({{ disk_usage.free }} free of {{ disk_usage.total }})</p>
+    <div class="card-body">
+        <div class="progress mb-2" style="height: 25px">
+            <div class="progress-bar {% if disk_usage.percent > 90 %}bg-danger{% elif disk_usage.percent > 75 %}bg-warning text-dark{% else %}bg-success{% endif %}" role="progressbar" style="width: {{ disk_usage.percent }}%;" aria-valuenow="{{ disk_usage.percent }}" aria-valuemin="0" aria-valuemax="100">{{ disk_usage.percent }}%</div>
+        </div>
+        <p class="mb-0 text-muted">{{ disk_usage.percent }}% Used ({{ disk_usage.free }} free of {{ disk_usage.total }})</p>
+    </div>
 </div>
 {% endif %}
