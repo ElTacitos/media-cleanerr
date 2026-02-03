@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Media Cleanerr - 8-Bit Edition</title>
+
+        <!-- Retro Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+
+        <!-- NES.css for the retro 8-bit component style mentioned in the request -->
+        <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet" />
+
+        <style>
+            html,
+            body,
+            pre,
+            code,
+            kbd,
+            samp {
+                font-family: "Press Start 2P", cursive;
+            }
+
+            body {
+                background-color: #212529;
+                color: #ffffff;
+                margin: 0;
+                padding: 0;
+                line-height: 1.5;
+            }
+
+            #root {
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+            }
+
+            /* Custom scrollbar for that retro feel */
+            ::-webkit-scrollbar {
+                width: 10px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #212529;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #ffffff;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #cccccc;
+            }
+
+            /* Fix for NES.css pseudo-elements capturing pointer events */
+            .nes-container::after,
+            .nes-container::before,
+            .nes-table::after,
+            .nes-table::before,
+            .nes-table-responsive::after,
+            .nes-table-responsive::before {
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/frontend/main.tsx"></script>
+    </body>
+</html>
